@@ -9,6 +9,22 @@
 #include "order.h"
 #include "errExit.h"
 
+// The readInt reads a integer value from an array of chars
+// It checks that only a number n is provided as an input parameter,
+// and that n is greater than 0
+int readInt(const char *s) {
+    char *endptr = NULL;
+
+    errno = 0;
+    long int res = strtol(s, &endptr, 10);
+
+    if (errno != 0 || *endptr != '\n' || res < 0) {
+        printf("invalid input argument\n");
+        exit(1);
+    }
+
+    return res;
+}
 
 int main (int argc, char *argv[]) {
 
@@ -39,24 +55,25 @@ int main (int argc, char *argv[]) {
     // by default, the order has type 1
     order.mtype = 1;
 
-    // read the code of the client's order
+    // read the code of the client's order (use readInt)
     printf("Insert order code: ");
     order.code = /*...*/
 
-    // read a description of the order
+    // read a description of the order (use fgets)
     printf("Insert a description: ");
     // ...
 
-    // read a quantity
+    // read a quantity of the order (use readInt)
     printf("Insert quantity: ");
     // ...
 
-    // read an e-mail
+    // read an e-mail address (use fgets)
     printf("Insert an e-mail: ");
     // ...
 
-    // send the order to the server through the message queue
     printf("Sending the order...\n");
+    size_t mSize = sizeof(struct order) - sizeof(long);
+    // send the order to the server through the message queue
     // ...
 
     printf("Done\n");

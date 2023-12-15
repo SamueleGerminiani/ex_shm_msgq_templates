@@ -19,16 +19,18 @@
 
 int create_sem_set(key_t semkey) {
     // Create a semaphore set with 2 semaphores
-    int semid = // ...
+    int semid = semget(semkey, 2, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (semid == -1)
         errExit("semget failed");
 
-    // Initialize the semaphore set with semctl
+    // Initialize the semaphore set
     union semun arg;
     unsigned short values[] = {0, 0};
     arg.array = values;
 
-    // ...
+    if (semctl(semid, 0, SETALL, arg) == -1)
+        errExit("semctl SETALL failed");
+
     return semid;
 }
 
@@ -44,7 +46,7 @@ void copy_file(const char *pathname, char *buffer) {
     // read a chunks of BUFFER_SZ - 1 characters
     ssize_t bR = read(file, buffer, BUFFER_SZ - 1);
     if (bR > 0)
-        buffer[bR] = '\0'; // end the line with '\0'
+        buffer[bR] = '\0'; // end the lie with '\0'
     else
         printf("read failed\n");
 
@@ -99,7 +101,7 @@ int main (int argc, char *argv[]) {
     char *buffer = (char *)get_shared_memory(shmidClient, 0);
 
     // copy file into the shared memory
-    printf("<Server> coping a file into the client's shared memory...\n");
+    printf("<Server> coping '%s' into the client's shared memory...\n", request->pathname);
     copy_file(request->pathname, buffer);
 
     // notify that data was stored into client's shared memory

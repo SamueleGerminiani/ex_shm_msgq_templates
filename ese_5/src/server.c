@@ -20,7 +20,7 @@
 
 int create_sem_set(key_t semkey) {
     // Create a semaphore set with 2 semaphores
-    int semid = // ...
+    int semid = semget(semkey, 3, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (semid == -1)
         errExit("semget failed");
 
@@ -29,7 +29,9 @@ int create_sem_set(key_t semkey) {
     unsigned short values[] = {0, 0, 0};
     arg.array = values;
 
-    // ...
+    if (semctl(semid, 0, SETALL, arg) == -1)
+        errExit("semctl SETALL failed");
+
     return semid;
 }
 
@@ -47,7 +49,7 @@ void copy_file(const char *pathname, char *buffer, int semid) {
         // read the file in chunks of BUFFER_SZ - 1 characters
         bR = read(file, buffer, BUFFER_SZ - 1);
         if (bR >= 0) {
-            buffer[bR] = '\0'; // end the lie with '\0'
+            buffer[bR] = '\0'; // end the line with '\0'
             // notify that data was stored into client's shared memory (DATA_READY)
             // ...
             // wait for ack from client (CLIENT_READY)
@@ -84,27 +86,27 @@ int main (int argc, char *argv[]) {
 
     // allocate a shared memory segment
     printf("<Server> allocating a shared memory segment...\n");
-    int shmidServer = // ...
+    int shmidServer = alloc_shared_memory(shmKey, sizeof(struct Request));
 
     // attach the shared memory segment
     printf("<Server> attaching the shared memory segment...\n");
-    struct Request *request = // ...
+    struct Request *request = (struct Request*)get_shared_memory(shmidServer, 0);
 
     // create a semaphore set
     printf("<Server> creating a semaphore set...\n");
-    int semid = // ...
+    int semid = create_sem_set(semkey);
 
-    // wait for a Request (REQUEST)
+    // wait for a Request
     printf("<Server> waiting for a request...\n");
-    // ...
+    semOp(semid, REQUEST, -1);
 
     // allocate a shared memory segment
     printf("<Server> getting the client's shared memory segment...\n");
-    int shmidClient = // ...
+    int shmidClient = alloc_shared_memory(request->shmKey, sizeof(char) * BUFFER_SZ);
 
     // attach the shared memory segment
     printf("<Server> attaching the client's shared memory segment...\n");
-    char *buffer = // ...
+    char *buffer = (char *)get_shared_memory(shmidClient, 0);
 
     // copy file into the shared memory
     printf("<Server> coping a file into the client's shared memory...\n");
@@ -112,15 +114,15 @@ int main (int argc, char *argv[]) {
 
     // detach the shared memory segment
     printf("<Client> detaching the client's shared memory segment...\n");
-    // ...
+    free_shared_memory(buffer);
 
     // detach the shared memory segment
     printf("<Server> detaching the shared memory segment...\n");
-    // ...
+    free_shared_memory(request);
 
     // remove the shared memory segment
     printf("<Server> removing the shared memory segment...\n");
-    // ...
+    remove_shared_memory(shmidServer);
 
     return 0;
 }
