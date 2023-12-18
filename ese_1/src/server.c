@@ -45,17 +45,22 @@ int main(int argc, char *argv[]) {
   // ...
 
   // set the function sigHandler as handler for the signal SIGINT
-   if (/*...*/ == SIG_ERR)  
-    errExit("change signal handler failed");
+  if (/*...*/ == SIG_ERR) errExit("change signal handler failed");
 
   printf("<Server> Making MSG queue...\n");
   // get the message queue, or create a new one if it does not exist
   msqid =  // ...
 
-  struct order order;
+      struct order order;
 
   // endless loop
   while (1) {
+    /* Warning: the POSIX convention requires to remove the type field (long)
+     from the message. The type field is not lost, instead, it is used by the
+     kernel to store the type of the message. The 'type' field is simply not
+     part of the message content; therefore, we should not include it in the
+     size of the message.
+     */
     size_t mSize = sizeof(struct order) - sizeof(long);
     // read a message from the message queue
     // ...

@@ -71,11 +71,9 @@ int main(int argc, char *argv[]) {
   request->shmKey = shmKeyClient;
 
   // get the server's semaphore set
-  int semid = semget(semkey, 2, S_IRUSR | S_IWUSR);
+  int semid = semget(semkey, 3, S_IRUSR | S_IWUSR);
   if (semid > 0) {
     // unlock the server (REQUEST)
-    // ...
-    // wait for data
     // ...
 
     int cond = 0;

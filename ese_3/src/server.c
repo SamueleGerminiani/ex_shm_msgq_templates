@@ -12,7 +12,7 @@
 // the message queue identifier
 int msqid = -1;
 
-void sigInIntler(int sig) {
+void sigIntHandler(int sig) {
   // do we have a valid message queue identifier?
   if (msqid > 0) {
     //...
@@ -48,8 +48,8 @@ int main(int argc, char *argv[]) {
   // get the message queue, or create a new one if it does not exist
   msqid =  // ...
 
-      // check functionality
-      printf("<Server> sleep...\n");
+  // check functionality
+  printf("<Server> sleep...\n");
 
   struct order order;
   // endless loop
