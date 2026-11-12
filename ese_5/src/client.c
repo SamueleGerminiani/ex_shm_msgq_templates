@@ -1,112 +1,55 @@
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/sem.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "errExit.h"
-#include "semaphore.h"
+#include "report.h"
+#include "result.h"
 #include "shared_memory.h"
 
-#define BUFFER_SZ 100
-
-#define REQUEST 0
-#define DATA_READY 1
-#define CLIENT_READY 2
-
 int main(int argc, char *argv[]) {
-  // check command line input arguments
-  if (argc != 4) {
-    printf(
-        "Usage: %s server_shared_memory_key semaphore_key "
-        "client_shared_memory_key\n",
-        argv[0]);
-    exit(1);
-  }
+    // The queue: key from 'ftok' with "." and 'n', created with 'msgget'
+    // and the flags IPC_CREAT | S_IRUSR | S_IWUSR (use 'errExit')
+    key_t key = -1;
+    int msqid = -1;
 
-  // read the server's shared memory key
-  key_t shmKeyServer = atoi(argv[1]);
-  if (shmKeyServer <= 0) {
-    printf("The server_shared_memory_key must be greater than zero!\n");
-    exit(1);
-  }
 
-  // read the semaphore key defined by user
-  key_t semkey = atoi(argv[2]);
-  if (semkey <= 0) {
-    printf("The semaphore_key must be greater than zero!\n");
-    exit(1);
-  }
+    printf("client %d: waiting for a result on queue %d\n", getpid(), msqid);
+    fflush(stdout);
 
-  // read the semaphore key defined by user
-  key_t shmKeyClient = atoi(argv[3]);
-  if (shmKeyClient <= 0) {
-    printf("The client_shared_memory_key must be greater than zero!\n");
-    exit(1);
-  }
+    // Wait for the notification using 'msgrcv': size NOTIFICATION_SIZE,
+    // type 1, flags 0 (use 'errExit' if it fails)
+    struct notification n;
 
-  // get the server's shared memory segment
-  printf("<Client> getting the server's shared memory segment...\n");
-  int shmidServer = alloc_shared_memory(shmKeyServer, sizeof(struct Request));
+    printf("client: %d rows from backend %d in segment %d\n", n.rows, (int)n.backend, n.shmid);
 
-  // attach the shared memory segment
-  printf("<Client> attaching the server's shared memory segment...\n");
-  struct Request *request = (struct Request *)get_shared_memory(shmidServer, 0);
+    // Attach the result segment in read only mode (SHM_RDONLY) with
+    // get_shared_memory
+    const char *result = NULL;
 
-  // read a pathname from user
-  printf("<Client> Insert pathname: ");
-  scanf("%s", request->pathname);
+    // Print the first three rows and the last one (given)
+    for (int i = 0; i < n.rows && i < 3; i++)
+        printf("  %s\n", result + (size_t)i * ROW_LEN);
+    if (n.rows > 4)
+        printf("  ... %d more rows ...\n", n.rows - 4);
+    if (n.rows > 3)
+        printf("  %s\n", result + (size_t)(n.rows - 1) * ROW_LEN);
 
-  // allocate a shared memory segment
-  printf("<Client> allocating a shared memory segment...\n");
-  int shmidClient = alloc_shared_memory(shmKeyClient, sizeof(char) * BUFFER_SZ);
+    // Release report (given): reveals code #5 when the result is complete
+    report_check(n.shmid, n.rows, result);
 
-  // attach the shared memory segment
-  printf("<Client> attaching the shared memory segment...\n");
-  char *buffer = (char *)get_shared_memory(shmidClient, 0);
+    // Detach the segment with free_shared_memory and remove it with
+    // remove_shared_memory: the reader cleans up. Then remove the queue
+    // using 'msgctl' and IPC_RMID (use 'errExit' if it fails)
 
-  // copy shmKeyClient into the server's shared memory segment
-  request->shmKey = shmKeyClient;
 
-  // get the server's semaphore set
-  int semid = semget(semkey, 3, S_IRUSR | S_IWUSR);
-  if (semid > 0) {
-    // unlock the server (REQUEST)
-    // ...
 
-    int cond = 0;
-    printf("<Client> reading data from the shared memory segment...\n");
-    do {
-      // wait for data (DATA_READY)
-      // ...
-      // check server's response
-      cond = (buffer[0] != 0 && buffer[0] != -1);
-      // print data on terminal
-      if (cond) printf("%s", buffer);
-      // notify the serve that data was acquired (CLIENT_READY)
-      // ...
-    } while (cond);
-  } else
-    printf("semget failed");
+    printf("client: result read, segment and queue removed\n");
 
-  // detach the shared memory segment
-  printf("<Client> detaching the server's shared memory segment...\n");
-  free_shared_memory(buffer);
-
-  // detach the server's shared memory segment
-  printf("<Client> detaching the server's shared memory segment...\n");
-  free_shared_memory(request);
-
-  // remove the shared memory segment
-  printf("<Client> removing the shared memory segment...\n");
-  remove_shared_memory(shmidClient);
-
-  // remove the created semaphore set
-  printf("<Client> removing the semaphore set...\n");
-  if (semctl(semid, 0 /*ignored*/, IPC_RMID, NULL) == -1)
-    errExit("semctl IPC_RMID failed");
-
-  return 0;
+    return 0;
 }

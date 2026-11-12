@@ -2,31 +2,27 @@
 #define _SHARED_MEMORY_HH
 
 #include <stdlib.h>
+#include <sys/types.h>
 
-// the Request structure defines a request sent by a client
-struct Request {
-    char pathname[250];
-    key_t shmKey;
-};
+/* The four operations on a shared memory segment, each one a system call
+ * plus its error check. Complete them in shared_memory.c. */
 
-// The alloc_shared_memory method creates, if it does not exist, a shared
-// memory segment with size bytes and shmKey key.
-// It returns the shmid on success, otherwise it terminates the calling process
+// alloc_shared_memory creates, or opens if it exists, a shared memory
+// segment of size bytes with key shmKey (IPC_PRIVATE for a new private
+// segment). It returns the shmid; on error it terminates the process.
 int alloc_shared_memory(key_t shmKey, size_t size);
 
-// The get_shared_memory attaches a shared memory segment in the logic address space
-// of the calling process.
-// It returns a pointer to the attached shared memory segment,
-// otherwise it terminates the calling process
+// get_shared_memory attaches the segment shmid to the address space of the
+// calling process with the flags shmflg (0: read and write, SHM_RDONLY:
+// read only). It returns the address; on error it terminates the process.
 void *get_shared_memory(int shmid, int shmflg);
 
-// The free_shared_memory detaches a shared memory segment from the logic
-// address space of the calling process.
-// If it does not succeed, it terminates the calling process
+// free_shared_memory detaches the segment attached at ptr_sh.
+// On error it terminates the process.
 void free_shared_memory(void *ptr_sh);
 
-// The remove_shared_memory removes a shared memory segment
-// If it does not succeed, it terminates the calling process
+// remove_shared_memory marks the segment shmid for removal: it disappears
+// when the last process detaches it. On error it terminates the process.
 void remove_shared_memory(int shmid);
 
 #endif

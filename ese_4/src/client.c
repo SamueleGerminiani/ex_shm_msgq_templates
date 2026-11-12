@@ -1,105 +1,54 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
-
+#include <sys/ipc.h>
+#include <sys/msg.h>
 #include <sys/stat.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "shared_memory.h"
-#include "semaphore.h"
 #include "errExit.h"
+#include "query.h"
 
-#define BUFFER_SZ 100
-
-#define REQUEST      0
-#define DATA_READY   1
-
-int main (int argc, char *argv[]) {
-
-    // check command line input arguments
-    if (argc != 4) {
-        printf("Usage: %s server_shared_memory_key semaphore_key client_shared_memory_key\n", argv[0]);
-        exit(1);
+int main(int argc, char *argv[]) {
+    // Check command line input arguments using 'argc'
+    if (argc != 3) {
+        printf("Usage: %s <priority 1|2|3> \"<sql>\"\n", argv[0]);
+        return 1;
     }
 
-    // read the server's shared memory key
-    key_t shmKeyServer = atoi(argv[1]);
-    if (shmKeyServer <= 0) {
-        printf("The server_shared_memory_key must be greater than zero!\n");
-        exit(1);
+    // Convert argv[1] to an integer using 'atoi': the priority of the
+    // query, 1 (interactive), 2 (batch) or 3 (maintenance)
+    long priority = 0;
+    if (priority < 1 || priority > 3) {
+        printf("The priority must be 1, 2 or 3!\n");
+        return 1;
     }
 
-    // read the semaphore key defined by user
-    key_t semkey = atoi(argv[2]);
-    if (semkey <= 0) {
-        printf("The semaphore_key must be greater than zero!\n");
-        exit(1);
-    }
+    // The key of the queue: 'ftok' with "." and 'q', exactly as the
+    // postmaster (use 'errExit' if it fails)
+    key_t key = -1;
 
-    // read the semaphore key defined by user
-    key_t shmKeyClient = atoi(argv[3]);
-    if (shmKeyClient <= 0) {
-        printf("The client_shared_memory_key must be greater than zero!\n");
-        exit(1);
-    }
 
-    // get the server's shared memory segment
-    printf("<Client> getting the server's shared memory segment...\n");
-    int shmidServer = alloc_shared_memory(shmKeyServer, sizeof(struct Request));
+    // Open the existing queue using 'msgget' with the key and the flags
+    // S_IRUSR | S_IWUSR (no IPC_CREAT): it fails with "No such file or
+    // directory" if the postmaster is not running (use 'errExit')
+    int msqid = -1;
 
-    // attach the shared memory segment
-    printf("<Client> attaching the server's shared memory segment...\n");
-    struct Request *request = (struct Request *)get_shared_memory(shmidServer, 0);
 
-    // read a pathname from user
-    printf("<Client> Insert pathname: ");
-    scanf("%s", request->pathname);
+    // Fill the message: the priority as type, the PID of this process, the
+    // text of argv[2] copied with 'strncpy' into sql (at most sizeof(q.sql) - 1
+    // characters, then the terminator)
+    struct query q;
 
-    // allocate a shared memory segment
-    printf("<Client> allocating a shared memory segment...\n");
-    int shmidClient = alloc_shared_memory(shmKeyClient, sizeof(char) * BUFFER_SZ);
 
-    // attach the shared memory segment
-    printf("<Client> attaching the shared memory segment...\n");
-    char *buffer = (char *)get_shared_memory(shmidClient, 0);
 
-    // copy shmKeyClient into the server's shared memory segment
-    request->shmKey = shmKeyClient;
 
-    // get the server's semaphore set
-    int semid = semget(semkey, 2, S_IRUSR | S_IWUSR);
-    if (semid > 0) {
-        // unlock the server
-        semOp(semid, REQUEST, 1);
-        // wait for data
-        semOp(semid, DATA_READY, -1);
 
-        printf("<Client> reading data from the shared memory segment...\n");
-        if (buffer[0] == -1)
-            printf("File %s does not exist\n", request->pathname);
-        else
-            printf("%s\n", buffer);
-    } else
-        printf("semget failed");
+    // Send it using 'msgsnd' with the size QUERY_SIZE and flags 0
+    // (use 'errExit' if it fails)
 
-    // detach the shared memory segment
-    printf("<Client> detaching the server's shared memory segment...\n");
-    free_shared_memory(buffer);
 
-    // detach the server's shared memory segment
-    printf("<Client> detaching the server's shared memory segment...\n");
-    free_shared_memory(request);
-
-    // remove the shared memory segment
-    printf("<Client> removing the shared memory segment...\n");
-    remove_shared_memory(shmidClient);
-
-    // remove the created semaphore set
-    printf("<Client> removing the semaphore set...\n");
-    if (semctl(semid, 0 /*ignored*/, IPC_RMID, NULL) == -1)
-        errExit("semctl IPC_RMID failed");
-
+    printf("client %d: query sent to the postmaster\n", getpid());
     return 0;
 }

@@ -1,61 +1,46 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
-
-#include <sys/stat.h>
+#include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "order.h"
 #include "errExit.h"
+#include "query.h"
 
-int main (int argc, char *argv[]) {
-    // check command line input arguments
+int main(int argc, char *argv[]) {
+    // Check command line input arguments using 'argc'
     if (argc != 2) {
-        printf("Usage: %s message_queue_key\n", argv[0]);
-        exit(1);
+        printf("Usage: %s \"<sql>\"\n", argv[0]);
+        return 1;
     }
 
-    // read the message queue key defined by user
-    int msgKey = atoi(argv[1]);
-    if (msgKey <= 0) {
-        printf("The message queue key must be greater than zero!\n");
-        exit(1);
-    }
+    // The key of the queue: 'ftok' with "." and 'q', exactly as the
+    // postmaster (use 'errExit' if it fails)
+    key_t key = -1;
 
-    // get the message queue identifier
-    int msqid = // ...
 
-    char buffer[10];
-    size_t len;
+    // Open the existing queue using 'msgget' with the key and the flags
+    // S_IRUSR | S_IWUSR (no IPC_CREAT): it fails with "No such file or
+    // directory" if the postmaster is not running (use 'errExit')
+    int msqid = -1;
 
-    // crea an order data struct
-    struct order order;
 
-    // setting the order's type
-    printf("Are you a prime user[y/n]: ");
-    // ...
+    // Fill the message: type 1, the PID of this process, the text of
+    // argv[1] copied with 'strncpy' into sql (at most sizeof(q.sql) - 1
+    // characters, then the terminator)
+    struct query q;
 
-    // read the code of the client's order
-    printf("Insert order code: ");
-    // ...
 
-    // read a description of the order
-    printf("Insert a description: ");
-    // ...
 
-    // read a quantity
-    printf("Insert quantity: ");
-    // ...
 
-    // read an e-mail
-    printf("Insert an e-mail: ");
-    // ...
 
-    // send the order to the server through the message queue
-    printf("Sending the order...\n");
-    // ...
+    // Send it using 'msgsnd' with the size QUERY_SIZE and flags 0
+    // (use 'errExit' if it fails)
 
-    printf("Done\n");
+
+    printf("client %d: query sent to the postmaster\n", getpid());
     return 0;
 }
